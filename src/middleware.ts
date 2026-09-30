@@ -2,22 +2,17 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request })
-
-  // Repassamos o caminho atual para o layout.tsx conseguir ler
-  supabaseResponse.headers.set('x-pathname', request.nextUrl.pathname)
-
-  const hasAuthCookie = request.cookies.getAll().some(c => c.name.includes('-auth-token'))
   const isLoginPage = request.nextUrl.pathname.startsWith('/login')
+  const hasAuthCookie = request.cookies.getAll().some(c => c.name.includes('-auth-token'))
 
-  // Se não tem cookie e tenta acessar área protegida, chuta pro login
+  // Se não tem cookie de autenticação e tenta acessar página protegida, manda para o login
   if (!hasAuthCookie && !isLoginPage) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
-  return supabaseResponse
+  return NextResponse.next()
 }
 
 export const config = {

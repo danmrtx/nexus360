@@ -13,8 +13,6 @@ export const metadata: Metadata = {
   description: "Sistema integrado de gestão de estoque e operações",
 };
 
-import { headers } from "next/headers";
-
 export default async function RootLayout({
   children,
 }: Readonly<{
@@ -22,15 +20,6 @@ export default async function RootLayout({
 }>) {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  
-  const headersList = headers();
-  const pathname = headersList.get('x-pathname') || "";
-
-  // Se o usuário não existe no banco, mas passou pelo middleware (ex: cookie fantasma de outro projeto),
-  // forçamos o redirecionamento se não estiver na página de login.
-  if (!user && !pathname.startsWith('/login')) {
-    redirect("/login?error=Sessão inválida. Por favor, faça login novamente.");
-  }
 
   let perfil: any = null;
   if (user) {
@@ -40,12 +29,6 @@ export default async function RootLayout({
       .eq('id', user.id)
       .single();
     perfil = data;
-
-    // Se o usuário foi inativado pelo administrador, bloqueia a sessão
-    if (perfil?.status === 'Inativo' && !pathname.startsWith('/login')) {
-      await supabase.auth.signOut();
-      redirect("/login?error=Sua conta foi inativada. Contate o administrador.");
-    }
   }
 
   async function signOut() {

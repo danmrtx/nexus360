@@ -1,14 +1,23 @@
 import { createClient } from "@/utils/supabase-server";
+import { requireAuth, canManageCatalog } from "@/utils/permissions";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
 
 export default async function ProdutosPage() {
   const supabase = createClient();
+  const { perfil } = await requireAuth();
+  const isAdm = canManageCatalog(perfil.papel);
+
   const { data: produtos } = await supabase.from("produtos").select("*, fornecedores(razao_social)").order("created_at", { ascending: false });
   const { data: fornecedores } = await supabase.from("fornecedores").select("id, razao_social");
 
   async function addProduto(formData: FormData) {
     "use server";
+    const { perfil: actionPerfil } = await requireAuth();
+    if (!canManageCatalog(actionPerfil.papel)) {
+      throw new Error("Apenas o Administrador pode cadastrar novos produtos.");
+    }
+
     const supabase = createClient();
     
     await supabase.from("produtos").insert([{ 
@@ -34,12 +43,18 @@ export default async function ProdutosPage() {
     <main className="min-h-screen p-10 bg-gray-50 text-gray-900">
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold">Catálogo Completo de Produtos</h1>
+          <div>
+            <h1 className="text-3xl font-bold">Catálogo Completo de Produtos</h1>
+            <p className="text-sm text-gray-500 mt-1">
+              {isAdm ? "Gestão total de produtos, limites e parametrizações" : "Consulta ao catálogo de produtos (Somente Leitura)"}
+            </p>
+          </div>
           <Link href="/" className="text-blue-600 hover:underline">← Voltar</Link>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-lg border-t-4 border-blue-500 mb-8">
-          <h2 className="text-xl font-semibold mb-4 border-b pb-2">Cadastrar Novo Produto</h2>
+        {isAdm && (
+          <div className="bg-white p-6 rounded-lg shadow-lg border-t-4 border-blue-500 mb-8">
+            <h2 className="text-xl font-semibold mb-4 border-b pb-2">Cadastrar Novo Produto</h2>
           <form action={addProduto} className="flex flex-col gap-4">
             {/* Linha 1 */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -123,6 +138,7 @@ export default async function ProdutosPage() {
             </div>
           </form>
         </div>
+        )}
 
         <div className="bg-white rounded-lg shadow overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-max">

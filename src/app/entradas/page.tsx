@@ -1,21 +1,34 @@
 import { createClient } from "@/utils/supabase-server";
+import { requireAuth, isOperador } from "@/utils/permissions";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
 export default async function EntradasPage() {
   const supabase = createClient();
+  const { user, perfil } = await requireAuth();
   
   // Buscar dados para popular os selects
   const { data: produtos } = await supabase.from("produtos").select("id, nome, sku").order("nome");
   const { data: unidades } = await supabase.from("unidades").select("id, nome").order("nome");
   const { data: fornecedores } = await supabase.from("fornecedores").select("id, razao_social").order("razao_social");
 
+  const userUnidade = perfil.unidades;
+  const isOperadorRole = isOperador(perfil.papel);
+
   async function receberMercadoria(formData: FormData) {
     "use server";
+    const { user: actionUser, perfil: actionPerfil } = await requireAuth();
+
     const produto_id = formData.get("produto_id") as string;
     const fornecedor_id = formData.get("fornecedor_id") as string;
-    const unidade_id = formData.get("unidade_id") as string;
+    
+    // Se for operador, força a unidade de lotação
+    let unidade_id = formData.get("unidade_id") as string;
+    if (isOperador(actionPerfil.papel) && actionPerfil.unidade_id) {
+      unidade_id = actionPerfil.unidade_id;
+    }
+
     const numero_lote = formData.get("numero_lote") as string;
     const nota_fiscal = formData.get("nota_fiscal") as string;
     const quantidade = Number(formData.get("quantidade"));
@@ -35,7 +48,7 @@ export default async function EntradasPage() {
       p_quantidade: quantidade,
       p_validade: validade || null,
       p_fabricacao: fabricacao || null,
-      p_usuario_id: null,
+      p_usuario_id: actionUser.id,
       p_custo_unitario: custo_unitario
     });
 
@@ -53,7 +66,12 @@ export default async function EntradasPage() {
     <main className="min-h-screen p-10 bg-gray-50 text-gray-900">
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold text-green-700">Entrada de Mercadorias</h1>
+          <div>
+            <h1 className="text-3xl font-bold text-green-700">Entrada de Mercadorias</h1>
+            <p className="text-sm text-gray-500 mt-1">
+              {isOperadorRole ? "Registro físico de mercadorias da sua unidade" : "Recebimento de mercadorias com geração de Lote"}
+            </p>
+          </div>
           <Link href="/" className="text-blue-600 hover:underline">← Voltar</Link>
         </div>
 
@@ -64,10 +82,19 @@ export default async function EntradasPage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Unidade de Destino (CD/Loja)</label>
-                <select name="unidade_id" required className="w-full border rounded p-2 bg-gray-50">
-                  <option value="">Selecione...</option>
-                  {unidades?.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
-                </select>
+                {isOperadorRole && userUnidade ? (
+                  <>
+                    <input type="hidden" name="unidade_id" value={userUnidade.id} />
+                    <div className="w-full border rounded p-2 bg-emerald-50 text-emerald-800 font-semibold text-sm">
+                      📍 {userUnidade.nome} (Sua Unidade)
+                    </div>
+                  </>
+                ) : (
+                  <select name="unidade_id" required className="w-full border rounded p-2 bg-gray-50">
+                    <option value="">Selecione...</option>
+                    {unidades?.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+                  </select>
+                )}
               </div>
               
               <div>

@@ -1,15 +1,20 @@
 import { createClient } from "@/utils/supabase-server";
+import { requireAuth, isOperador, isGerente } from "@/utils/permissions";
 import Link from "next/link";
 
 export default async function EstoquePage() {
   const supabase = createClient();
+  const { user, perfil } = await requireAuth();
+
+  const isScoped = (isOperador(perfil.papel) || isGerente(perfil.papel)) && !!perfil.unidade_id;
   
   // 1. Busca os saldos detalhados por lote
-  const { data: saldosLotes } = await supabase
+  let query = supabase
     .from("estoque_lote")
     .select(`
       quantidade,
       quantidade_reservada,
+      unidade_id,
       unidades ( id, nome, tipo ),
       lotes (
         numero_lote,
@@ -19,6 +24,12 @@ export default async function EstoquePage() {
       )
     `)
     .gt("quantidade", 0);
+
+  if (isScoped && perfil.unidade_id) {
+    query = query.eq("unidade_id", perfil.unidade_id);
+  }
+
+  const { data: saldosLotes } = await query;
 
   // 2. Agrupa saldos por Produto + Unidade
   const estoqueAgregado = new Map<string, any>();

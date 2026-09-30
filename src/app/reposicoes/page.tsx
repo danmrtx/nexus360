@@ -1,14 +1,46 @@
 import { createClient } from "@/utils/supabase-server";
+import { requireAuth, isOperador, isGerente } from "@/utils/permissions";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
 
 export default async function ReposicoesPage() {
   const supabase = createClient();
+  const { user, perfil } = await requireAuth();
+
+  // Operador não tem acesso a reposições
+  if (isOperador(perfil.papel)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-10 bg-slate-50">
+        <div className="text-center max-w-md bg-white p-8 rounded-xl shadow border">
+          <h1 className="text-2xl font-bold text-red-600 mb-2">Acesso Restrito</h1>
+          <p className="text-slate-600 mb-6">
+            O perfil de Operador executa apenas movimentações físicas e não possui permissão para acessar a Central de Reposição e Decisões de Compra.
+          </p>
+          <Link href="/" className="bg-blue-600 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-blue-700 transition">
+            Voltar ao Painel
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const isGerenteRole = isGerente(perfil.papel);
+  const userUnidadeId = perfil.unidade_id;
 
   // 1. Busca dados do Banco
   const { data: produtos } = await supabase.from("produtos").select("*, fornecedores(razao_social)");
   const { data: unidades } = await supabase.from("unidades").select("*");
-  const { data: reposicoes } = await supabase.from("reposicoes").select("*, produtos(nome, sku), fornecedores(razao_social), unidades(nome)").order("created_at", { ascending: false });
+  
+  let repoQuery = supabase
+    .from("reposicoes")
+    .select("*, produtos(nome, sku), fornecedores(razao_social), unidades(nome)")
+    .order("created_at", { ascending: false });
+
+  if (isGerenteRole && userUnidadeId) {
+    repoQuery = repoQuery.eq("unidade_id", userUnidadeId);
+  }
+  const { data: reposicoes } = await repoQuery;
+
   const { data: transferencias } = await supabase.from("transferencias").select("produto_id, unidade_destino, quantidade").in("status", ["Sugerida", "Aprovada", "Em transito"]);
 
   const { data: saldosLotes } = await supabase
@@ -29,7 +61,7 @@ export default async function ReposicoesPage() {
     estoquePorUnidadeProduto.set(key, (estoquePorUnidadeProduto.get(key) || 0) + disponivel);
   });
 
-  // Calcular excedentes
+  // Calcular excedentes em toda a rede
   unidades?.forEach(u => {
     produtos?.forEach(p => {
       const key = `${u.id}_${p.id}`;
@@ -42,9 +74,14 @@ export default async function ReposicoesPage() {
     });
   });
 
+  // Unidades a avaliar alertas de ruptura (se for Gerente, avalia apenas a sua loja)
+  const unidadesAvaliacao = (isGerenteRole && userUnidadeId) 
+    ? (unidades?.filter(u => u.id === userUnidadeId) || [])
+    : (unidades || []);
+
   // Gerar Sugestões de Ação
   const alertas: any[] = [];
-  unidades?.forEach(u => {
+  unidadesAvaliacao.forEach(u => {
     produtos?.forEach(p => {
       const key = `${u.id}_${p.id}`;
       const saldoAtual = estoquePorUnidadeProduto.get(key) || 0;
@@ -63,7 +100,7 @@ export default async function ReposicoesPage() {
         
         if (excedentes.length > 0) {
           // Tem excesso em outra unidade -> Sugerir Transferência
-          const origem = unidades.find(un => un.id === excedentes[0].unidade_id);
+          const origem = unidades?.find(un => un.id === excedentes[0].unidade_id);
           const qtdPossivel = Math.min(qtdSugerida, excedentes[0].excedente);
           alertas.push({
             tipo: 'transferencia',
@@ -110,13 +147,16 @@ export default async function ReposicoesPage() {
 
   async function aprovarCompra(formData: FormData) {
     "use server";
+    const { perfil: actionPerfil } = await requireAuth();
+    const initialStatus = actionPerfil.papel === 'Gerente de Loja' ? 'Sugerida' : 'Aprovada';
+
     const supabase = createClient();
     await supabase.from("reposicoes").insert([{
       produto_id: formData.get("produto_id"),
       fornecedor_id: formData.get("fornecedor_id"),
       unidade_id: formData.get("unidade_id"),
       quantidade: Number(formData.get("quantidade")),
-      status: 'Aprovada'
+      status: initialStatus
     }]);
     revalidatePath("/reposicoes");
   }

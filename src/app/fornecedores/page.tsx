@@ -1,13 +1,22 @@
 import { createClient } from "@/utils/supabase-server";
+import { requireAuth, canManageCatalog } from "@/utils/permissions";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
 
 export default async function FornecedoresPage() {
   const supabase = createClient();
+  const { perfil } = await requireAuth();
+  const isAdm = canManageCatalog(perfil.papel);
+
   const { data: fornecedores } = await supabase.from("fornecedores").select("*").order("created_at", { ascending: false });
 
   async function addFornecedor(formData: FormData) {
     "use server";
+    const { perfil: actionPerfil } = await requireAuth();
+    if (!canManageCatalog(actionPerfil.papel)) {
+      throw new Error("Apenas o Administrador pode cadastrar fornecedores.");
+    }
+
     const razao_social = formData.get("razao_social") as string;
     const cnpj = formData.get("cnpj") as string;
     const prazo_medio = Number(formData.get("prazo_medio"));
@@ -22,30 +31,37 @@ export default async function FornecedoresPage() {
     <main className="min-h-screen p-10 bg-gray-50 text-gray-900">
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold">Gerenciar Fornecedores</h1>
+          <div>
+            <h1 className="text-3xl font-bold">Gerenciar Fornecedores</h1>
+            <p className="text-sm text-gray-500 mt-1">
+              {isAdm ? "Cadastro e manutenção de fornecedores e prazos" : "Consulta de parceiros cadastrados (Somente Leitura)"}
+            </p>
+          </div>
           <Link href="/" className="text-blue-600 hover:underline">← Voltar</Link>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow mb-8">
-          <h2 className="text-xl font-semibold mb-4">Novo Fornecedor</h2>
-          <form action={addFornecedor} className="flex gap-4 items-end">
-            <div className="flex-1">
-              <label className="block text-sm font-medium mb-1">Razão Social</label>
-              <input type="text" name="razao_social" required className="w-full border rounded p-2" placeholder="Empresa XYZ" />
-            </div>
-            <div className="flex-1">
-              <label className="block text-sm font-medium mb-1">CNPJ</label>
-              <input type="text" name="cnpj" required className="w-full border rounded p-2" placeholder="00.000.000/0001-00" />
-            </div>
-            <div className="w-32">
-              <label className="block text-sm font-medium mb-1">Prazo (Dias)</label>
-              <input type="number" name="prazo_medio" required defaultValue={0} className="w-full border rounded p-2" />
-            </div>
-            <button type="submit" className="bg-blue-600 text-white px-6 py-2 rounded font-medium hover:bg-blue-700">
-              Salvar
-            </button>
-          </form>
-        </div>
+        {isAdm && (
+          <div className="bg-white p-6 rounded-lg shadow mb-8">
+            <h2 className="text-xl font-semibold mb-4">Novo Fornecedor</h2>
+            <form action={addFornecedor} className="flex gap-4 items-end">
+              <div className="flex-1">
+                <label className="block text-sm font-medium mb-1">Razão Social</label>
+                <input type="text" name="razao_social" required className="w-full border rounded p-2" placeholder="Empresa XYZ" />
+              </div>
+              <div className="flex-1">
+                <label className="block text-sm font-medium mb-1">CNPJ</label>
+                <input type="text" name="cnpj" required className="w-full border rounded p-2" placeholder="00.000.000/0001-00" />
+              </div>
+              <div className="w-32">
+                <label className="block text-sm font-medium mb-1">Prazo (Dias)</label>
+                <input type="number" name="prazo_medio" required defaultValue={0} className="w-full border rounded p-2" />
+              </div>
+              <button type="submit" className="bg-blue-600 text-white px-6 py-2 rounded font-medium hover:bg-blue-700">
+                Salvar
+              </button>
+            </form>
+          </div>
+        )}
 
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <table className="w-full text-left border-collapse">

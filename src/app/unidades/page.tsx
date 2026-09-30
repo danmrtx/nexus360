@@ -1,13 +1,22 @@
 import { createClient } from "@/utils/supabase-server";
+import { requireAuth, canManageCatalog } from "@/utils/permissions";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
 
 export default async function UnidadesPage() {
   const supabase = createClient();
+  const { perfil } = await requireAuth();
+  const isAdm = canManageCatalog(perfil.papel);
+
   const { data: unidades } = await supabase.from("unidades").select("*").order("created_at", { ascending: false });
 
   async function addUnidade(formData: FormData) {
     "use server";
+    const { perfil: actionPerfil } = await requireAuth();
+    if (!canManageCatalog(actionPerfil.papel)) {
+      throw new Error("Apenas o Administrador pode cadastrar unidades.");
+    }
+
     const nome = formData.get("nome") as string;
     const tipo = formData.get("tipo") as string;
     const endereco = formData.get("endereco") as string;
@@ -22,33 +31,40 @@ export default async function UnidadesPage() {
     <main className="min-h-screen p-10 bg-gray-50 text-gray-900">
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold">Gerenciar Unidades</h1>
+          <div>
+            <h1 className="text-3xl font-bold">Gerenciar Unidades (CDs e Lojas)</h1>
+            <p className="text-sm text-gray-500 mt-1">
+              {isAdm ? "Cadastro e gestão de unidades da rede" : "Consulta de CDs e Lojas ativas (Somente Leitura)"}
+            </p>
+          </div>
           <Link href="/" className="text-blue-600 hover:underline">← Voltar</Link>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow mb-8">
-          <h2 className="text-xl font-semibold mb-4">Nova Unidade</h2>
-          <form action={addUnidade} className="flex gap-4 items-end">
-            <div className="flex-1">
-              <label className="block text-sm font-medium mb-1">Nome</label>
-              <input type="text" name="nome" required className="w-full border rounded p-2" placeholder="Ex: Loja Centro" />
-            </div>
-            <div className="w-48">
-              <label className="block text-sm font-medium mb-1">Tipo</label>
-              <select name="tipo" required className="w-full border rounded p-2">
-                <option value="LOJA">Loja</option>
-                <option value="CD">Centro de Distribuição</option>
-              </select>
-            </div>
-            <div className="flex-1">
-              <label className="block text-sm font-medium mb-1">Endereço</label>
-              <input type="text" name="endereco" className="w-full border rounded p-2" placeholder="Rua..." />
-            </div>
-            <button type="submit" className="bg-blue-600 text-white px-6 py-2 rounded font-medium hover:bg-blue-700">
-              Salvar
-            </button>
-          </form>
-        </div>
+        {isAdm && (
+          <div className="bg-white p-6 rounded-lg shadow mb-8">
+            <h2 className="text-xl font-semibold mb-4">Nova Unidade</h2>
+            <form action={addUnidade} className="flex gap-4 items-end">
+              <div className="flex-1">
+                <label className="block text-sm font-medium mb-1">Nome</label>
+                <input type="text" name="nome" required className="w-full border rounded p-2" placeholder="Ex: Loja Centro" />
+              </div>
+              <div className="w-48">
+                <label className="block text-sm font-medium mb-1">Tipo</label>
+                <select name="tipo" required className="w-full border rounded p-2">
+                  <option value="LOJA">Loja</option>
+                  <option value="CD">Centro de Distribuição</option>
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="block text-sm font-medium mb-1">Endereço</label>
+                <input type="text" name="endereco" className="w-full border rounded p-2" placeholder="Rua..." />
+              </div>
+              <button type="submit" className="bg-blue-600 text-white px-6 py-2 rounded font-medium hover:bg-blue-700">
+                Salvar
+              </button>
+            </form>
+          </div>
+        )}
 
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <table className="w-full text-left border-collapse">

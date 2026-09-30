@@ -1,15 +1,52 @@
 import { createClient } from "@/utils/supabase-server";
+import { requireAuth, isOperador, isGerente } from "@/utils/permissions";
 import Link from "next/link";
 
 export default async function RelatoriosPage() {
   const supabase = createClient();
+  const { user, perfil } = await requireAuth();
 
-  // 1. Coleta de Dados Básicos
+  // Operador não tem acesso a relatórios
+  if (isOperador(perfil.papel)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-10 bg-slate-50">
+        <div className="text-center max-w-md bg-white p-8 rounded-xl shadow border">
+          <h1 className="text-2xl font-bold text-red-600 mb-2">Acesso Restrito</h1>
+          <p className="text-slate-600 mb-6">
+            O perfil de Operador executa operações físicas e não possui permissão para acessar os relatórios e inteligência gerencial.
+          </p>
+          <Link href="/" className="bg-blue-600 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-blue-700 transition">
+            Voltar ao Painel
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const isGerenteRole = isGerente(perfil.papel);
+  const userUnidadeId = perfil.unidade_id;
+
+  // 1. Coleta de Dados Básicos (Filtrado por unidade se for Gerente de Loja)
   const { data: produtos } = await supabase.from("produtos").select("id, nome, estoque_minimo, estoque_maximo, preco_custo");
   const { data: lotes } = await supabase.from("lotes").select("id, data_validade, status, custo_unitario, produtos(nome)");
-  const { data: estoque } = await supabase.from("estoque_lote").select("quantidade, quantidade_reservada, lotes(produto_id)");
-  const { data: movimentacoes } = await supabase.from("movimentacoes").select("tipo, quantidade, created_at, lotes(produto_id, custo_unitario, produtos(nome))");
-  const { data: reposicoes } = await supabase.from("reposicoes").select("status, quantidade, produtos(preco_custo)");
+  
+  let estoqueQuery = supabase.from("estoque_lote").select("quantidade, quantidade_reservada, unidade_id, lotes(produto_id)");
+  if (isGerenteRole && userUnidadeId) {
+    estoqueQuery = estoqueQuery.eq("unidade_id", userUnidadeId);
+  }
+  const { data: estoque } = await estoqueQuery;
+
+  let movQuery = supabase.from("movimentacoes").select("tipo, quantidade, created_at, unidade_id, lotes(produto_id, custo_unitario, produtos(nome))");
+  if (isGerenteRole && userUnidadeId) {
+    movQuery = movQuery.eq("unidade_id", userUnidadeId);
+  }
+  const { data: movimentacoes } = await movQuery;
+
+  let repoQuery = supabase.from("reposicoes").select("status, quantidade, unidade_id, produtos(preco_custo)");
+  if (isGerenteRole && userUnidadeId) {
+    repoQuery = repoQuery.eq("unidade_id", userUnidadeId);
+  }
+  const { data: reposicoes } = await repoQuery;
 
   // --- PROCESSAMENTO: ESTOQUE ---
   const estoquePorProduto = new Map<string, number>();

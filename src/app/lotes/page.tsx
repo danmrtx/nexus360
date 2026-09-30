@@ -1,11 +1,15 @@
 import { createClient } from "@/utils/supabase-server";
+import { requireAuth, isOperador, isGerente } from "@/utils/permissions";
 import Link from "next/link";
 
 export default async function LotesPage() {
   const supabase = createClient();
+  const { user, perfil } = await requireAuth();
+
+  const isScoped = (isOperador(perfil.papel) || isGerente(perfil.papel)) && !!perfil.unidade_id;
   
   // Buscar o histórico de todos os lotes com seus relacionamentos
-  const { data: lotes } = await supabase
+  const { data: todosLotes } = await supabase
     .from("lotes")
     .select(`
       id,
@@ -18,9 +22,13 @@ export default async function LotesPage() {
       status,
       produtos ( nome, sku ),
       fornecedores ( razao_social ),
-      estoque_lote ( quantidade, unidades ( nome ) )
+      estoque_lote ( quantidade, unidade_id, unidades ( nome ) )
     `)
     .order("data_entrada", { ascending: false });
+
+  const lotes = isScoped
+    ? todosLotes?.filter((l: any) => l.estoque_lote?.some((el: any) => el.unidade_id === perfil.unidade_id))
+    : todosLotes;
 
   return (
     <main className="min-h-screen p-10 bg-gray-50 text-gray-900">

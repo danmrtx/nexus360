@@ -13,7 +13,7 @@ export default async function RelatoriosPage() {
 
   // --- PROCESSAMENTO: ESTOQUE ---
   const estoquePorProduto = new Map<string, number>();
-  estoque?.forEach(e => {
+  estoque?.forEach((e: any) => {
     const prodId = e.lotes?.produto_id;
     if (prodId) {
       estoquePorProduto.set(prodId, (estoquePorProduto.get(prodId) || 0) + (Number(e.quantidade) - Number(e.quantidade_reservada)));
@@ -35,7 +35,7 @@ export default async function RelatoriosPage() {
   let vencendo7 = 0;
   let vencendo15 = 0;
 
-  lotes?.forEach(l => {
+  lotes?.forEach((l: any) => {
     if (l.data_validade) {
       const dias = Math.ceil((new Date(l.data_validade).getTime() - hoje) / DAY_MS);
       if (dias < 0) vencidos++;
@@ -46,7 +46,7 @@ export default async function RelatoriosPage() {
 
   // Valor Perdido por Vencimento/Perda (Pega das movimentações de saída)
   let valorPerdido = 0;
-  movimentacoes?.forEach(m => {
+  movimentacoes?.forEach((m: any) => {
     if (m.tipo === 'vencimento' || m.tipo === 'perda' || m.tipo === 'avaria') {
       valorPerdido += Number(m.quantidade) * Number(m.lotes?.custo_unitario || 0);
     }
@@ -56,7 +56,7 @@ export default async function RelatoriosPage() {
   const contagemMovs = { entradas: 0, saidas: 0, transferencias: 0, devolucoes: 0 };
   const vendasPorProduto = new Map<string, { nome: string, qtd: number }>();
   
-  movimentacoes?.forEach(m => {
+  movimentacoes?.forEach((m: any) => {
     const qtd = Number(m.quantidade);
     if (m.tipo === 'entrada') contagemMovs.entradas += qtd;
     if (m.tipo === 'venda') {
@@ -76,7 +76,7 @@ export default async function RelatoriosPage() {
   let comprasRealizadas = 0;
   let reposicoesPendentes = 0;
   let valorComprado = 0;
-  reposicoes?.forEach(r => {
+  reposicoes?.forEach((r: any) => {
     if (r.status === 'Recebida') {
       comprasRealizadas++;
       valorComprado += Number(r.quantidade) * Number(r.produtos?.preco_custo || 0);

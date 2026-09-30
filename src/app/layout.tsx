@@ -54,7 +54,7 @@ export default async function RootLayout({
                 </span>
               ) : (
                 <span className="bg-slate-800 border border-slate-700 text-slate-300 px-2.5 py-1 rounded-md text-xs font-medium">
-                  🌐 Rede Geral (Todas as Unidades)
+                  Rede Geral (Todas as Unidades)
                 </span>
               )}
             </div>
@@ -63,7 +63,7 @@ export default async function RootLayout({
               <div className="flex items-center gap-2">
                 <span className="text-slate-300">Olá, {displayName}</span>
                 <span className={`${badgeColor} text-white px-2 py-0.5 rounded text-xs font-bold uppercase shadow-sm`}>
-                  {perfil?.papel || 'Administrador'}
+                  {perfil?.papel || 'Usuário'}
                 </span>
               </div>
               

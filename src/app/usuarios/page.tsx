@@ -61,7 +61,7 @@ export default async function UsuariosPage() {
           const exists = rawUsuarios.some((p: any) => p.id === u.id);
           if (!exists) {
             const nome = u.user_metadata?.nome || u.user_metadata?.full_name || (u.email === 'danielmartins30@icloud.com' ? 'Daniel Martins' : u.email?.split('@')[0]) || "Usuário";
-            const papel = (u.email === 'danielmartins30@icloud.com' || u.email?.includes('admin')) ? 'Administrador' : (u.user_metadata?.papel || 'Operador');
+            const papel = u.email?.includes('admin') ? 'Administrador' : (u.user_metadata?.papel || 'Operador');
             const { data: createdP } = await adminClient.from("perfis").insert([{
               id: u.id,
               nome,
@@ -241,8 +241,8 @@ export default async function UsuariosPage() {
 
         {/* FORMULÁRIO DE CADASTRO DE NOVO FUNCIONÁRIO */}
         <div className="bg-white rounded-xl shadow border border-slate-200 p-6 mb-8">
-          <h2 className="text-lg font-bold text-slate-800 mb-4 pb-2 border-b flex items-center gap-2">
-            <span>👤</span> Cadastrar Novo Funcionário
+          <h2 className="text-lg font-bold text-slate-800 mb-4 pb-2 border-b">
+            Cadastrar Novo Funcionário
           </h2>
           <form action={criarUsuario} className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
@@ -374,10 +374,10 @@ export default async function UsuariosPage() {
                       <td className="p-4 text-xs font-medium text-slate-600">
                         {u.unidades?.nome ? (
                           <span className="bg-slate-100 text-slate-700 px-2 py-1 rounded">
-                            📍 {u.unidades.nome} ({u.unidades.tipo})
+                            {u.unidades.nome} ({u.unidades.tipo})
                           </span>
                         ) : (
-                          <span className="text-slate-400 italic">🌐 Global (Todas)</span>
+                          <span className="text-slate-400 italic">Global (Todas)</span>
                         )}
                       </td>
 

@@ -1,0 +1,2 @@
+CREATE POLICY "Write_Fornecedores" ON public.fornecedores FOR ALL TO authenticated USING (auth_user_perfil() IN ('Administrador', 'Gestor de Estoque')) WITH CHECK (auth_user_perfil() IN ('Administrador', 'Gestor de Estoque'));
+CREATE POLICY "Write_Unidades" ON public.unidades FOR ALL TO authenticated USING (auth_user_perfil() IN ('Administrador', 'Gestor de Estoque')) WITH CHECK (auth_user_perfil() IN ('Administrador', 'Gestor de Estoque'));

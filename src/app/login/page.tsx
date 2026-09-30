@@ -7,8 +7,8 @@ export default async function LoginPage({ searchParams }: { searchParams: { mess
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   
-  // Se já estiver logado, foge dessa tela e vai para a Home
-  if (user) {
+  // Se já estiver logado E não houver parâmetro de erro ou cadastro, vai para a Home
+  if (user && !searchParams?.error && !searchParams?.mode) {
     return redirect("/");
   }
 

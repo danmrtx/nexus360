@@ -1,4 +1,4 @@
-﻿import { createClient } from "@/utils/supabase-server";
+import { createClient } from "@/utils/supabase-server";
 import { redirect } from "next/navigation";
 
 export type PapelUsuario = 'Administrador' | 'Gestor de Estoque' | 'Gerente de Loja' | 'Operador';
@@ -24,21 +24,65 @@ export async function getSessionAndProfile(): Promise<{ user: any; perfil: Perfi
     return { user: null, perfil: null };
   }
 
-  const { data: perfil } = await supabase
+  // 1. Busca perfil de forma defensiva sem depender de sintaxe de relação PostgREST
+  let { data: perfil } = await supabase
     .from("perfis")
-    .select("*, unidades(id, nome, tipo)")
+    .select("*")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
+
+  // 2. Se o usuário está autenticado no Auth mas ainda não tem registro em 'perfis', cria automaticamente
+  if (!perfil) {
+    const nome = user.user_metadata?.nome || user.email?.split("@")[0] || "Administrador";
+    const { count } = await supabase.from("perfis").select("*", { count: 'exact', head: true });
+    const papel = (!count || count === 0) ? 'Administrador' : (user.user_metadata?.papel || 'Administrador');
+
+    const { data: novoPerfil } = await supabase
+      .from("perfis")
+      .insert([{
+        id: user.id,
+        nome,
+        papel,
+        status: 'Ativo'
+      }])
+      .select("*")
+      .maybeSingle();
+
+    perfil = novoPerfil || {
+      id: user.id,
+      nome,
+      papel,
+      status: 'Ativo',
+      unidade_id: null
+    };
+  }
+
+  // 3. Se houver unidade_id, busca os dados da unidade separadamente
+  if (perfil?.unidade_id) {
+    const { data: unidade } = await supabase
+      .from("unidades")
+      .select("id, nome, tipo")
+      .eq("id", perfil.unidade_id)
+      .maybeSingle();
+    perfil.unidades = unidade;
+  }
 
   return { user, perfil: perfil as PerfilUsuario | null };
 }
 
 export async function requireAuth(): Promise<{ user: any; perfil: PerfilUsuario }> {
   const { user, perfil } = await getSessionAndProfile();
-  if (!user || !perfil) {
+  if (!user) {
     redirect("/login");
   }
+  if (!perfil) {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    redirect("/login?error=Perfil de acesso não encontrado. Faça login novamente.");
+  }
   if (perfil.status === 'Inativo') {
+    const supabase = createClient();
+    await supabase.auth.signOut();
     redirect("/login?error=Sua conta está inativa. Contate o administrador.");
   }
   return { user, perfil };

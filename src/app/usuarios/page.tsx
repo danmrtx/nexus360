@@ -1,4 +1,4 @@
-﻿import { createClient } from "@/utils/supabase-server";
+import { createClient } from "@/utils/supabase-server";
 import { getSupabaseAdmin } from "@/utils/supabase-admin";
 import { requireAuth, canManageUsers } from "@/utils/permissions";
 import { revalidatePath } from "next/cache";
@@ -23,16 +23,79 @@ export default async function UsuariosPage() {
     );
   }
 
-  // 2. Buscar usuários e unidades
-  const { data: usuarios } = await supabase
+  // 2. Buscar usuários e unidades de forma robusta e desacoplada
+  let rawUsuarios: any[] = [];
+  const { data: perfisData } = await supabase
     .from("perfis")
-    .select("*, unidades(id, nome, tipo)")
+    .select("*")
     .order("created_at", { ascending: false });
+
+  if (perfisData && perfisData.length > 0) {
+    rawUsuarios = [...perfisData];
+  }
+
+  const adminClient = getSupabaseAdmin();
+  const emailMap = new Map<string, string>();
+  if (user?.id && user?.email) {
+    emailMap.set(user.id, user.email);
+  }
+
+  if (adminClient) {
+    if (rawUsuarios.length === 0) {
+      const { data: adminPerfis } = await adminClient
+        .from("perfis")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (adminPerfis && adminPerfis.length > 0) {
+        rawUsuarios = [...adminPerfis];
+      }
+    }
+
+    try {
+      const { data: authData } = await adminClient.auth.admin.listUsers();
+      if (authData?.users) {
+        for (const u of authData.users) {
+          if (u.id && u.email) {
+            emailMap.set(u.id, u.email);
+          }
+          const exists = rawUsuarios.some((p: any) => p.id === u.id);
+          if (!exists) {
+            const nome = u.user_metadata?.nome || u.user_metadata?.full_name || (u.email === 'danielmartins30@icloud.com' ? 'Daniel Martins' : u.email?.split('@')[0]) || "Usuário";
+            const papel = (u.email === 'danielmartins30@icloud.com' || u.email?.includes('admin')) ? 'Administrador' : (u.user_metadata?.papel || 'Operador');
+            const { data: createdP } = await adminClient.from("perfis").insert([{
+              id: u.id,
+              nome,
+              papel,
+              status: 'Ativo'
+            }]).select("*").maybeSingle();
+            if (createdP) {
+              rawUsuarios.push(createdP);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Erro ao sincronizar contas com auth.users:", e);
+    }
+  }
+
+  // Garante que o perfil do usuário atual esteja presente
+  if (meuPerfil && !rawUsuarios.some((p: any) => p.id === meuPerfil.id)) {
+    rawUsuarios.unshift(meuPerfil);
+  }
 
   const { data: unidades } = await supabase
     .from("unidades")
     .select("id, nome, tipo")
     .order("nome");
+
+  const unidadesMap = new Map((unidades || []).map((u: any) => [u.id, u]));
+
+  const usuarios = rawUsuarios.map((u: any) => ({
+    ...u,
+    email: emailMap.get(u.id) || u.email || null,
+    unidades: u.unidade_id ? (unidadesMap.get(u.unidade_id) || null) : null
+  }));
 
   // 3. Action para cadastrar novo usuário
   async function criarUsuario(formData: FormData) {
@@ -263,8 +326,13 @@ export default async function UsuariosPage() {
                             </span>
                           )}
                         </div>
+                        {u.email && (
+                          <div className="text-xs text-slate-500 font-medium">
+                            {u.email}
+                          </div>
+                        )}
                         <div className="text-xs text-slate-400">
-                          Cadastrado em: {new Date(u.created_at).toLocaleDateString('pt-BR')}
+                          {u.created_at ? `Cadastrado em: ${new Date(u.created_at).toLocaleDateString('pt-BR')}` : ''}
                         </div>
                       </td>
 

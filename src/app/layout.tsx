@@ -68,8 +68,8 @@ export default async function RootLayout({
               </div>
               
               {perfil?.papel === 'Administrador' && (
-                <Link href="/usuarios" className="text-slate-300 hover:text-white hover:underline flex items-center gap-1 font-medium bg-slate-800 px-2.5 py-1 rounded border border-slate-700">
-                  👥 Controle de Usuários
+                <Link href="/usuarios" className="text-slate-300 hover:text-white hover:bg-slate-800 transition flex items-center font-medium px-2.5 py-1 rounded border border-slate-700">
+                  Controle de Usuários
                 </Link>
               )}
 

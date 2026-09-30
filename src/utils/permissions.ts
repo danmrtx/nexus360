@@ -57,7 +57,21 @@ export async function getSessionAndProfile(): Promise<{ user: any; perfil: Perfi
     };
   }
 
-  // 3. Se houver unidade_id, busca os dados da unidade separadamente
+  // 3. Atualizar nome e garantir papel de Administrador para o proprietário da conta
+  if (perfil) {
+    const rawNome = user.user_metadata?.nome || user.user_metadata?.full_name || (user.email === 'danielmartins30@icloud.com' ? 'Daniel Martins' : user.email?.split('@')[0]);
+    if ((!perfil.nome || perfil.nome === 'Usuário' || perfil.nome.includes('@')) && rawNome) {
+      perfil.nome = rawNome;
+      await supabase.from("perfis").update({ nome: rawNome }).eq("id", user.id);
+    }
+
+    if (user.email === 'danielmartins30@icloud.com' && perfil.papel !== 'Administrador') {
+      perfil.papel = 'Administrador';
+      await supabase.from("perfis").update({ papel: 'Administrador' }).eq("id", user.id);
+    }
+  }
+
+  // 4. Se houver unidade_id, busca os dados da unidade separadamente
   if (perfil?.unidade_id) {
     const { data: unidade } = await supabase
       .from("unidades")

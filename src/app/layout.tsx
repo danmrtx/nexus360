@@ -13,23 +13,14 @@ export const metadata: Metadata = {
   description: "Sistema integrado de gestão de estoque e operações",
 };
 
+import { getSessionAndProfile } from "@/utils/permissions";
+
 export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  let perfil: any = null;
-  if (user) {
-    const { data } = await supabase
-      .from('perfis')
-      .select('*, unidades(id, nome, tipo)')
-      .eq('id', user.id)
-      .single();
-    perfil = data;
-  }
+  const { user, perfil } = await getSessionAndProfile();
 
   async function signOut() {
     "use server";
@@ -38,6 +29,8 @@ export default async function RootLayout({
     revalidatePath("/", "layout");
     redirect("/login");
   }
+
+  const displayName = perfil?.nome || user?.user_metadata?.nome || user?.email?.split('@')[0] || "Usuário";
 
   // Cores de destaque por cargo
   const badgeColor = 
@@ -68,15 +61,15 @@ export default async function RootLayout({
 
             <div className="flex items-center gap-6 text-sm">
               <div className="flex items-center gap-2">
-                <span className="text-slate-300">Olá, {perfil?.nome || user.email}</span>
+                <span className="text-slate-300">Olá, {displayName}</span>
                 <span className={`${badgeColor} text-white px-2 py-0.5 rounded text-xs font-bold uppercase shadow-sm`}>
-                  {perfil?.papel || 'Usuário'}
+                  {perfil?.papel || 'Administrador'}
                 </span>
               </div>
               
               {perfil?.papel === 'Administrador' && (
-                <Link href="/usuarios" className="text-slate-300 hover:text-white hover:underline flex items-center gap-1 font-medium">
-                  ⚙️ Gestão de Usuários
+                <Link href="/usuarios" className="text-slate-300 hover:text-white hover:underline flex items-center gap-1 font-medium bg-slate-800 px-2.5 py-1 rounded border border-slate-700">
+                  👥 Controle de Usuários
                 </Link>
               )}
 
